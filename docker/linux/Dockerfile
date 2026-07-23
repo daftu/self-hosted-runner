@@ -24,6 +24,35 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-dev python3-pip python3-venv ssh sudo \
     && rm -rf /var/lib/apt/lists/*
 
+ARG NODE_MAJOR=22
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        gnupg \
+    && install -d -m 0755 /etc/apt/keyrings \
+    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+        | gpg --batch --yes --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+    && chmod a+r /etc/apt/keyrings/nodesource.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" \
+        > /etc/apt/sources.list.d/nodesource.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        nodejs \
+        git \
+        tar \
+        unzip \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN node --version \
+    && npm --version \
+    && git --version \
+    && tar --version \
+    && command -v unzip \
+    && curl --version
+
 # Add docker user to docker group and allow GID fix at startup
 RUN usermod -aG docker docker \
     && echo "docker ALL=(root) NOPASSWD: /usr/sbin/groupmod" >> /etc/sudoers
