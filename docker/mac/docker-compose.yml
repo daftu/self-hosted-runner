@@ -8,7 +8,7 @@ services:
     env_file:
       - ../../.env
     volumes:
-      - runner-data:/runner-data
+      - runner-data:/home/runner/actions-runner/.runner-data
       - /var/run/docker.sock:/var/run/docker.sock
     logging:
       driver: "json-file"

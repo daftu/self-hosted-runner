@@ -3,11 +3,12 @@
 set -euo pipefail
 
 RUNNER_HOME=/home/runner/actions-runner
-DATA_ROOT=/runner-data
+DATA_ROOT="${RUNNER_HOME}/.runner-data"
 STATE_DIR=
 WORK_PATH=
 DIAG_PATH=
 REPLICA_NAME=
+RUNNER_WORK_DIR=
 STATE_FILES=(
   .runner
   .runner_migrated
@@ -39,7 +40,6 @@ resolve_replica_storage() {
   fi
 
   STATE_DIR="${DATA_ROOT}/${container_name}/state"
-  WORK_PATH="${DATA_ROOT}/${container_name}/work"
   DIAG_PATH="${DATA_ROOT}/${container_name}/diag"
   REPLICA_NAME="${container_name}"
 }
@@ -68,18 +68,40 @@ link_persistent_directory() {
 prepare_replica_storage() {
   local configured_work_dir
 
-  resolve_replica_storage
   configured_work_dir="${WORK_DIR:-_work}"
   if [[ "${configured_work_dir}" == /* || "${configured_work_dir}" == *".."* ]]; then
     echo "WORK_DIR must be a relative path inside the runner directory." >&2
     exit 1
   fi
 
+  resolve_replica_storage
+  RUNNER_WORK_DIR=".runner-data/${REPLICA_NAME}/${configured_work_dir}"
+  WORK_PATH="${RUNNER_HOME}/${RUNNER_WORK_DIR}"
+
   mkdir -p "${STATE_DIR}" "${WORK_PATH}" "${DIAG_PATH}"
   chmod 700 "${STATE_DIR}" "${WORK_PATH}" "${DIAG_PATH}"
-  link_persistent_directory "${RUNNER_HOME}/${configured_work_dir}" "${WORK_PATH}"
   link_persistent_directory "${RUNNER_HOME}/_diag" "${DIAG_PATH}"
   echo "Using persistent runner storage for ${REPLICA_NAME}."
+}
+
+migrate_work_directory() {
+  local temporary_runner_file
+
+  [[ -f "${STATE_DIR}/.runner" ]] || return
+  if jq -e --arg work_folder "${RUNNER_WORK_DIR}" \
+    '.workFolder == $work_folder' "${STATE_DIR}/.runner" >/dev/null; then
+    return
+  fi
+  temporary_runner_file="$(mktemp "${STATE_DIR}/.runner.XXXXXX")"
+  if ! jq --arg work_folder "${RUNNER_WORK_DIR}" \
+    'if has("workFolder") then .workFolder = $work_folder else error("missing workFolder") end' \
+    "${STATE_DIR}/.runner" > "${temporary_runner_file}"; then
+    rm -f "${temporary_runner_file}"
+    echo "Could not migrate the runner work directory." >&2
+    exit 1
+  fi
+  chmod 600 "${temporary_runner_file}"
+  mv "${temporary_runner_file}" "${STATE_DIR}/.runner"
 }
 
 state_is_configured() {
@@ -151,6 +173,7 @@ fi
 
 if state_is_configured; then
   echo "Existing runner registration found; starting without REG_TOKEN."
+  migrate_work_directory
   prepare_state_links
   exec ./run.sh
 fi
@@ -172,7 +195,7 @@ CONFIG_ARGS=(--unattended --url "https://github.com/${REPO}" --token "${REG_TOKE
 
 [ -n "${LABELS:-}" ]       && CONFIG_ARGS+=(--labels "${LABELS}")
 [ -n "${RUNNER_GROUP:-}" ] && CONFIG_ARGS+=(--runnergroup "${RUNNER_GROUP}")
-[ -n "${WORK_DIR:-}" ]     && CONFIG_ARGS+=(--work "${WORK_DIR}")
+CONFIG_ARGS+=(--work "${RUNNER_WORK_DIR}")
 [ "${DISABLE_AUTO_UPDATE:-true}" = "true" ] && CONFIG_ARGS+=(--disableupdate)
 
 umask 077
