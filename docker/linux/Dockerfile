@@ -64,12 +64,13 @@ RUN cd /home/docker && mkdir actions-runner && cd actions-runner \
 # Change ownership to docker user and install dependencies
 RUN chown -R docker /home/docker && /home/docker/actions-runner/bin/installdependencies.sh
 
-# Compose mounts a named volume here. The entrypoint isolates each scaled
-# replica beneath its stable Compose container name.
+# Compose mounts a named volume inside the runner home. Keeping the work path
+# physical (rather than a symlink) is required for Git's includeIf credential
+# configuration used by actions/checkout.
 RUN rm -rf /home/docker/actions-runner/_work /home/docker/actions-runner/_diag \
-    && mkdir -p /runner-data \
-    && chown -R docker:docker /runner-data /home/docker/actions-runner
-VOLUME ["/runner-data"]
+    && mkdir -p /home/docker/actions-runner/.runner-data \
+    && chown -R docker:docker /home/docker/actions-runner
+VOLUME ["/home/docker/actions-runner/.runner-data"]
 
 # Copy the start script and make it executable
 COPY --chmod=+x start.sh /start.sh

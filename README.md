@@ -132,7 +132,7 @@ Copy `.env.example` to `.env` and set your values. The `.env` file is gitignored
 |----------|---------|-------------|
 | `LABELS` | _(none)_ | Comma-separated labels, e.g. `self-hosted,linux,x64,gpu` |
 | `RUNNER_GROUP` | _(default)_ | Runner group name — org/enterprise only |
-| `WORK_DIR` | `_work` | Workspace directory inside the container |
+| `WORK_DIR` | `_work` | Per-replica workspace subdirectory inside persistent runner storage |
 | `EPHEMERAL` | `false` | Unsupported by persistent runner images; must remain `false` |
 | `DISABLE_AUTO_UPDATE` | `true` | Defaults to `true`; rebuild the image to upgrade the runner |
 | `RUNNER_REPLICAS` | Linux: `2`, macOS: `1` | Number of persistent replicas started by Compose |
@@ -193,12 +193,14 @@ RUNNER_REPLICAS=4 docker compose -f docker/linux/docker-compose.yml up -d --buil
 
 ## Persistent replicas
 
-Each Compose file declares a named `runner-data` volume. The entrypoint resolves
-the stable Docker Compose container name (for example `project-runner-1`) and
-stores that replica's registration state, workspace, and diagnostics under its
-own directory in the volume. `runner-1` and `runner-2` therefore never share
-credentials or a GitHub runner identity, while their data survives a container
-recreate.
+Each Compose file declares a named `runner-data` volume mounted inside the
+runner's home directory. The entrypoint resolves the stable Docker Compose
+container name (for example `project-runner-1`) and stores that replica's
+registration state, workspace, and diagnostics under its own directory in the
+volume. `runner-1` and `runner-2` therefore never share credentials or a GitHub
+runner identity, while their data survives a container recreate. The workspace
+is a physical path inside the runner home, which keeps Git's `includeIf`
+credential lookup used by `actions/checkout` intact.
 
 ### Migrating from anonymous volumes
 
@@ -207,6 +209,10 @@ the old anonymous volumes into it automatically. Keep a valid `REG_TOKEN` for
 that one migration rollout, then remove the obsolete GitHub runner records after
 the new replicas are healthy. Future recreates of the same Compose project reuse
 the per-replica directories and do not need the token.
+
+Deployments created by an earlier `runner-data` version do not need a new token:
+the entrypoint retains the existing state and updates its recorded workspace path
+before starting the runner.
 
 When `docker compose up -d --build` recreates containers after an image change,
 Compose reattaches the named volume. Existing replicas therefore start directly with
