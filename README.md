@@ -37,6 +37,7 @@ Use the Arcane-specific Compose file instead of the normal Linux file:
 
 - **Compose path:** `docker/linux/docker-compose.arcane.yml`
 - **Sync entire directory:** enabled
+- **Image:** `self-hosted-runner:local`, built manually on the Docker host managed by Arcane
 
 The initial Git Sync deliberately creates the project with `RUNNER_REPLICAS=0`.
 It therefore passes Arcane's Compose validation without requiring a `.env` file

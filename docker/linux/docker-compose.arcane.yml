@@ -1,6 +1,6 @@
 services:
   runner:
-    image: ghcr.io/youssefbrr/self-hosted-runner:latest
+    image: self-hosted-runner:local
     restart: always
     environment:
       # Arcane writes these values to the managed project's .env after the
