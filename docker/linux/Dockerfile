@@ -64,6 +64,12 @@ RUN cd /home/docker && mkdir actions-runner && cd actions-runner \
 # Change ownership to docker user and install dependencies
 RUN chown -R docker /home/docker && /home/docker/actions-runner/bin/installdependencies.sh
 
+# Each container receives its own anonymous volumes. Keep runner registration
+# state separate from the installed runner so rebuilt images retain new binaries.
+RUN mkdir -p /runner-state /home/docker/actions-runner/_work /home/docker/actions-runner/_diag \
+    && chown -R docker:docker /runner-state /home/docker/actions-runner
+VOLUME ["/runner-state", "/home/docker/actions-runner/_work", "/home/docker/actions-runner/_diag"]
+
 # Copy the start script and make it executable
 COPY --chmod=+x start.sh /start.sh
 
