@@ -46,14 +46,35 @@ prepare_state_links() {
   done
 }
 
+persist_registration_state() {
+  local state_file runner_file
+
+  mkdir -p "${STATE_DIR}"
+  chmod 700 "${STATE_DIR}"
+
+  for state_file in "${STATE_FILES[@]}"; do
+    runner_file="${RUNNER_HOME}/${state_file}"
+    if [[ -L "${runner_file}" ]]; then
+      echo "Unexpected state link before initial registration: ${runner_file}" >&2
+      exit 1
+    fi
+    [[ -e "${runner_file}" ]] && mv "${runner_file}" "${STATE_DIR}/${state_file}"
+  done
+
+  if ! state_is_configured; then
+    echo "Runner registration completed without all required state files." >&2
+    exit 1
+  fi
+
+  prepare_state_links
+}
+
 if [ -S /var/run/docker.sock ]; then
     DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
     sudo groupmod -g "$DOCKER_GID" docker 2>/dev/null || true
 fi
 
 cd "${RUNNER_HOME}"
-
-prepare_state_links
 
 if [[ "${EPHEMERAL:-false}" == "true" ]]; then
   echo "EPHEMERAL=true is incompatible with persistent runner state." >&2
@@ -62,6 +83,7 @@ fi
 
 if state_is_configured; then
   echo "Existing runner registration found; starting without REG_TOKEN."
+  prepare_state_links
   exec ./run.sh
 fi
 
@@ -88,6 +110,7 @@ CONFIG_ARGS=(--unattended --url "https://github.com/${REPO}" --token "${REG_TOKE
 umask 077
 ./config.sh "${CONFIG_ARGS[@]}"
 umask 022
+persist_registration_state
 
 echo "Runner ${runner_name} registered successfully."
 exec ./run.sh
