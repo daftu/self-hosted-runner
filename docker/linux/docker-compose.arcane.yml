@@ -17,6 +17,7 @@ services:
       # self-update can replace bin/ while the container is running.
       DISABLE_AUTO_UPDATE: "true"
     volumes:
+      - runner-data:/runner-data
       - /var/run/docker.sock:/var/run/docker.sock
     logging:
       driver: "json-file"
@@ -40,3 +41,6 @@ services:
         reservations:
           cpus: '0.4'
           memory: 256M
+
+volumes:
+  runner-data:

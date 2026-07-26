@@ -37,11 +37,12 @@ RUN mkdir -p /home/runner/actions-runner && cd /home/runner/actions-runner \
 RUN cd /home/runner/actions-runner \
     && ./bin/installdependencies.sh
 
-# Each container receives its own anonymous volumes. Keep runner registration
-# state separate from the installed runner so rebuilt images retain new binaries.
-RUN mkdir -p /runner-state /home/runner/actions-runner/_work /home/runner/actions-runner/_diag \
-    && chown -R runner:runner /runner-state /home/runner
-VOLUME ["/runner-state", "/home/runner/actions-runner/_work", "/home/runner/actions-runner/_diag"]
+# Compose mounts a named volume here. The entrypoint isolates each scaled
+# replica beneath its stable Compose container name.
+RUN rm -rf /home/runner/actions-runner/_work /home/runner/actions-runner/_diag \
+    && mkdir -p /runner-data \
+    && chown -R runner:runner /runner-data /home/runner
+VOLUME ["/runner-data"]
 
 # Copy the start script and make it executable
 COPY start.sh /home/runner/start.sh
