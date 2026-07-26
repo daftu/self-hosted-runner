@@ -25,8 +25,9 @@ docker-compose -f docker/linux/docker-compose.yml up -d
 docker-compose -f docker/mac/docker-compose.yml up -d
 ```
 
-> **REG_TOKEN expires after 1 hour.** Generate a fresh one from
-> GitHub → Settings → Actions → Runners → "New self-hosted runner" before each deploy.
+> **REG_TOKEN expires after 1 hour.** It is needed only for the first registration
+> of each new replica. Existing replicas reconnect from their persistent local
+> state, so an image rebuild does not require a fresh token.
 
 ---
 
@@ -49,9 +50,9 @@ Both variants support pre-built images from GHCR. By default, `docker-compose up
 ## Features
 
 - **Zero-config start** — set 3 env vars and run
-- **Clean shutdown** — SIGINT/SIGTERM deregisters the runner automatically
-- **Scalable** — Linux defaults to 2 replicas; tune with `deploy.replicas`
-- **Ephemeral mode** — run once and self-destruct (`EPHEMERAL=true`)
+- **Persistent registration** — every replica keeps its own GitHub identity across image rebuilds
+- **Scalable** — Linux defaults to 2 replicas; tune with `RUNNER_REPLICAS` or `--scale`
+- **Isolated storage** — Docker gives every replica its own state, work, and diagnostic volumes
 - **Docker-in-Docker** — macOS image mounts the Docker socket for nested builds
 - **GitHub CLI** — `gh` pre-installed from official repos on both variants
 - **Docker CLI** — official Docker CE CLI with buildx and compose plugins
@@ -73,7 +74,9 @@ docker/
     └── start.sh
 ```
 
-Both `start.sh` scripts: configure via `config.sh` → trap SIGINT/SIGTERM for deregistration → exec `run.sh`.
+Both `start.sh` scripts: configure via `config.sh` only when their own persistent
+state is empty, then execute `run.sh`. SIGINT/SIGTERM stops the listener without
+removing the runner registration.
 
 ---
 
@@ -86,8 +89,8 @@ Copy `.env.example` to `.env` and set your values. The `.env` file is gitignored
 | Variable | Description |
 |----------|-------------|
 | `REPO` | `owner/repo` for repo-level or `owner` for org-level runners |
-| `REG_TOKEN` | Registration token from GitHub Settings (expires in 1 hour) |
-| `NAME` | Display name shown in GitHub Actions UI |
+| `REG_TOKEN` | Registration token from GitHub Settings; only needed for a new replica (expires in 1 hour) |
+| `NAME` | Base display name; a container ID suffix makes every replica unique |
 
 ### Optional
 
@@ -96,8 +99,9 @@ Copy `.env.example` to `.env` and set your values. The `.env` file is gitignored
 | `LABELS` | _(none)_ | Comma-separated labels, e.g. `self-hosted,linux,x64,gpu` |
 | `RUNNER_GROUP` | _(default)_ | Runner group name — org/enterprise only |
 | `WORK_DIR` | `_work` | Workspace directory inside the container |
-| `EPHEMERAL` | `false` | `true` → deregister after one job |
+| `EPHEMERAL` | `false` | Unsupported by persistent runner images; must remain `false` |
 | `DISABLE_AUTO_UPDATE` | `false` | `true` → prevent runner self-updates |
+| `RUNNER_REPLICAS` | Linux: `2`, macOS: `1` | Number of persistent replicas started by Compose |
 
 ### Override Runner Version
 
@@ -142,16 +146,43 @@ runs-on: [self-hosted, linux, gpu]
 
 ## Scaling
 
-Adjust replicas in `docker-compose.yml` under `deploy.replicas`. GitHub will distribute jobs across all registered runners automatically.
+Set the desired replica count in `.env`, or override it for one launch. GitHub
+will distribute jobs across all registered runners automatically.
 
-```yaml
-deploy:
-  replicas: 4       # spin up 4 concurrent runners
-  resources:
-    limits:
-      cpus: '0.5'
-      memory: 512M
+```env
+RUNNER_REPLICAS=4
 ```
+
+```sh
+RUNNER_REPLICAS=4 docker compose -f docker/linux/docker-compose.yml up -d --build
+```
+
+## Persistent replicas
+
+Each runner image declares anonymous Docker volumes for its registration state,
+workspace, and diagnostics. Docker Compose assigns a distinct set to every
+replica, so `runner-1` and `runner-2` never share credentials or a GitHub runner
+identity.
+
+When `docker compose up -d --build` recreates containers after an image change,
+Compose reattaches those volumes. Existing replicas therefore start directly with
+`run.sh`; `REG_TOKEN` can be expired or absent after the first registration.
+
+Use normal Compose updates to preserve state:
+
+```sh
+docker compose -f docker/linux/docker-compose.yml up -d --build
+```
+
+Do not use `--renew-anon-volumes` (`-V`) for an update: it intentionally creates
+new volumes and every affected replica will need registration again. Likewise,
+`docker compose down` is a teardown operation; Docker cannot automatically attach
+anonymous volumes to the next `up`. If a runner must be permanently retired,
+remove it in GitHub and then run `docker compose down -v` to delete its volumes.
+
+`EPHEMERAL=true` is intentionally rejected by the persistent image because an
+ephemeral runner deregisters after one job and cannot be safely restarted from
+saved state.
 
 ---
 
@@ -191,7 +222,9 @@ docker-compose -f docker/linux/docker-compose.yml ps
 ```sh
 docker-compose -f docker/linux/docker-compose.yml down
 ```
-`down` sends SIGTERM → `start.sh` cleanup → runner deregisters cleanly.
+Normal shutdown leaves the runner registered as offline. To permanently remove
+one, use GitHub → Settings → Actions → Runners → Remove (or Force remove if the
+container is no longer available), then delete the corresponding Compose volumes.
 
 ---
 
@@ -202,7 +235,8 @@ See [SECURITY.md](SECURITY.md) for the vulnerability reporting policy.
 Key practices in this project:
 - Runners execute as non-root users (`docker` on Linux, `runner` on ARM64)
 - Secrets live in `.env` (gitignored) — never hardcoded in compose files
-- `REG_TOKEN` is used only at registration time; not stored after config
+- `REG_TOKEN` is used only at initial registration; it is not stored in runner state
+- Persistent state contains runner credentials and is isolated in a Docker volume per replica
 
 ---
 
