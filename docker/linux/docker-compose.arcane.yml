@@ -13,7 +13,9 @@ services:
       RUNNER_GROUP: "${RUNNER_GROUP:-}"
       WORK_DIR: "${WORK_DIR:-_work}"
       EPHEMERAL: "false"
-      DISABLE_AUTO_UPDATE: "${DISABLE_AUTO_UPDATE:-false}"
+      # Runner upgrades are delivered through the locally built image. A
+      # self-update can replace bin/ while the container is running.
+      DISABLE_AUTO_UPDATE: "true"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     logging:

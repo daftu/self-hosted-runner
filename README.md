@@ -59,6 +59,9 @@ are present. Every replica receives separate persistent Docker volumes, so later
 image recreates reuse its GitHub registration state. Keep `REG_TOKEN` only in
 Arcane; it is needed only when a new replica registers.
 
+Arcane always disables the runner's in-container self-update. Rebuild the local
+image and let Arcane recreate the containers when upgrading the runner version.
+
 ---
 
 ## Pre-built Image vs Local Build
@@ -130,7 +133,7 @@ Copy `.env.example` to `.env` and set your values. The `.env` file is gitignored
 | `RUNNER_GROUP` | _(default)_ | Runner group name — org/enterprise only |
 | `WORK_DIR` | `_work` | Workspace directory inside the container |
 | `EPHEMERAL` | `false` | Unsupported by persistent runner images; must remain `false` |
-| `DISABLE_AUTO_UPDATE` | `false` | `true` → prevent runner self-updates |
+| `DISABLE_AUTO_UPDATE` | `true` | Defaults to `true`; rebuild the image to upgrade the runner |
 | `RUNNER_REPLICAS` | Linux: `2`, macOS: `1` | Number of persistent replicas started by Compose |
 
 ### Override Runner Version

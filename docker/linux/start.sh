@@ -83,7 +83,7 @@ CONFIG_ARGS=(--unattended --url "https://github.com/${REPO}" --token "${REG_TOKE
 [ -n "${LABELS:-}" ]       && CONFIG_ARGS+=(--labels "${LABELS}")
 [ -n "${RUNNER_GROUP:-}" ] && CONFIG_ARGS+=(--runnergroup "${RUNNER_GROUP}")
 [ -n "${WORK_DIR:-}" ]     && CONFIG_ARGS+=(--work "${WORK_DIR}")
-[ "${DISABLE_AUTO_UPDATE:-false}" = "true" ] && CONFIG_ARGS+=(--disableupdate)
+[ "${DISABLE_AUTO_UPDATE:-true}" = "true" ] && CONFIG_ARGS+=(--disableupdate)
 
 umask 077
 ./config.sh "${CONFIG_ARGS[@]}"
