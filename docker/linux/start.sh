@@ -38,6 +38,7 @@ prepare_state_links() {
 
   for state_file in "${STATE_FILES[@]}"; do
     runner_file="${RUNNER_HOME}/${state_file}"
+    [[ -e "${STATE_DIR}/${state_file}" ]] || continue
     if [[ -e "${runner_file}" && ! -L "${runner_file}" ]]; then
       echo "Refusing to replace existing runner configuration file: ${runner_file}" >&2
       exit 1
