@@ -31,6 +31,35 @@ docker-compose -f docker/mac/docker-compose.yml up -d
 
 ---
 
+## Arcane GitOps (Linux)
+
+Use the Arcane-specific Compose file instead of the normal Linux file:
+
+- **Compose path:** `docker/linux/docker-compose.arcane.yml`
+- **Sync entire directory:** enabled
+
+The initial Git Sync deliberately creates the project with `RUNNER_REPLICAS=0`.
+It therefore passes Arcane's Compose validation without requiring a `.env` file
+or storing a GitHub registration token in Git.
+
+After that first sync succeeds, set these values in the GitOps project's managed
+environment in Arcane:
+
+```env
+REPO=owner/repository
+REG_TOKEN=github_registration_token
+NAME=arcane-runner
+LABELS=self-hosted,linux,x64
+RUNNER_REPLICAS=2
+```
+
+Set `RUNNER_REPLICAS` to the desired number only after the required variables
+are present. Every replica receives separate persistent Docker volumes, so later
+image recreates reuse its GitHub registration state. Keep `REG_TOKEN` only in
+Arcane; it is needed only when a new replica registers.
+
+---
+
 ## Pre-built Image vs Local Build
 
 Both variants support pre-built images from GHCR. By default, `docker-compose up` pulls the pre-built image — no build step required.
