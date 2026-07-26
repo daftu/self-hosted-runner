@@ -3,7 +3,11 @@
 set -euo pipefail
 
 RUNNER_HOME=/home/docker/actions-runner
-STATE_DIR=/runner-state
+DATA_ROOT=/runner-data
+STATE_DIR=
+WORK_PATH=
+DIAG_PATH=
+REPLICA_NAME=
 STATE_FILES=(
   .runner
   .runner_migrated
@@ -15,6 +19,68 @@ STATE_FILES=(
   .options
   .setup_info
 )
+
+resolve_replica_storage() {
+  local container_name
+
+  if [[ ! -S /var/run/docker.sock ]]; then
+    echo "Docker socket is required to resolve persistent runner storage." >&2
+    exit 1
+  fi
+
+  container_name="$(curl --silent --show-error --fail \
+    --unix-socket /var/run/docker.sock \
+    "http://localhost/containers/${HOSTNAME}/json" | jq -r '.Name')"
+  container_name="${container_name#/}"
+
+  if [[ -z "${container_name}" || "${container_name}" == "null" || ! "${container_name}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
+    echo "Could not resolve a safe Docker Compose container name for persistent runner storage." >&2
+    exit 1
+  fi
+
+  STATE_DIR="${DATA_ROOT}/${container_name}/state"
+  WORK_PATH="${DATA_ROOT}/${container_name}/work"
+  DIAG_PATH="${DATA_ROOT}/${container_name}/diag"
+  REPLICA_NAME="${container_name}"
+}
+
+link_persistent_directory() {
+  local runner_path="$1" persistent_path="$2"
+
+  mkdir -p "${persistent_path}"
+  if [[ -L "${runner_path}" ]]; then
+    ln -sfn "${persistent_path}" "${runner_path}"
+    return
+  fi
+  if [[ -d "${runner_path}" ]]; then
+    if [[ -n "$(find "${runner_path}" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+      echo "Refusing to replace non-empty runner directory: ${runner_path}" >&2
+      exit 1
+    fi
+    rmdir "${runner_path}"
+  elif [[ -e "${runner_path}" ]]; then
+    echo "Refusing to replace runner path: ${runner_path}" >&2
+    exit 1
+  fi
+  ln -s "${persistent_path}" "${runner_path}"
+}
+
+prepare_replica_storage() {
+  local configured_work_dir
+
+  resolve_replica_storage
+  configured_work_dir="${WORK_DIR:-_work}"
+  if [[ "${configured_work_dir}" == /* || "${configured_work_dir}" == *".."* ]]; then
+    echo "WORK_DIR must be a relative path inside the runner directory." >&2
+    exit 1
+  fi
+
+  mkdir -p "${STATE_DIR}" "${WORK_PATH}" "${DIAG_PATH}"
+  chmod 700 "${STATE_DIR}" "${WORK_PATH}" "${DIAG_PATH}"
+  link_persistent_directory "${RUNNER_HOME}/${configured_work_dir}" "${WORK_PATH}"
+  link_persistent_directory "${RUNNER_HOME}/_diag" "${DIAG_PATH}"
+  echo "Using persistent runner storage for ${REPLICA_NAME}."
+}
 
 state_is_configured() {
   [[ -f "${STATE_DIR}/.runner" ]] \
@@ -76,6 +142,7 @@ if [ -S /var/run/docker.sock ]; then
 fi
 
 cd "${RUNNER_HOME}"
+prepare_replica_storage
 
 if [[ "${EPHEMERAL:-false}" == "true" ]]; then
   echo "EPHEMERAL=true is incompatible with persistent runner state." >&2

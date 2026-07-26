@@ -55,8 +55,9 @@ RUNNER_REPLICAS=2
 ```
 
 Set `RUNNER_REPLICAS` to the desired number only after the required variables
-are present. Every replica receives separate persistent Docker volumes, so later
-image recreates reuse its GitHub registration state. Keep `REG_TOKEN` only in
+are present. Each replica receives a separate directory in the project's named
+`runner-data` volume, so later image recreates reuse its GitHub registration
+state. Keep `REG_TOKEN` only in
 Arcane; it is needed only when a new replica registers.
 
 Arcane always disables the runner's in-container self-update. Rebuild the local
@@ -85,7 +86,7 @@ Both variants support pre-built images from GHCR. By default, `docker-compose up
 - **Zero-config start** — set 3 env vars and run
 - **Persistent registration** — every replica keeps its own GitHub identity across image rebuilds
 - **Scalable** — Linux defaults to 2 replicas; tune with `RUNNER_REPLICAS` or `--scale`
-- **Isolated storage** — Docker gives every replica its own state, work, and diagnostic volumes
+- **Persistent isolated storage** — one named Compose volume stores separate state, work, and diagnostic directories per replica
 - **Docker-in-Docker** — macOS image mounts the Docker socket for nested builds
 - **GitHub CLI** — `gh` pre-installed from official repos on both variants
 - **Docker CLI** — official Docker CE CLI with buildx and compose plugins
@@ -192,13 +193,23 @@ RUNNER_REPLICAS=4 docker compose -f docker/linux/docker-compose.yml up -d --buil
 
 ## Persistent replicas
 
-Each runner image declares anonymous Docker volumes for its registration state,
-workspace, and diagnostics. Docker Compose assigns a distinct set to every
-replica, so `runner-1` and `runner-2` never share credentials or a GitHub runner
-identity.
+Each Compose file declares a named `runner-data` volume. The entrypoint resolves
+the stable Docker Compose container name (for example `project-runner-1`) and
+stores that replica's registration state, workspace, and diagnostics under its
+own directory in the volume. `runner-1` and `runner-2` therefore never share
+credentials or a GitHub runner identity, while their data survives a container
+recreate.
+
+### Migrating from anonymous volumes
+
+The first deployment of this version creates `runner-data`; Docker cannot move
+the old anonymous volumes into it automatically. Keep a valid `REG_TOKEN` for
+that one migration rollout, then remove the obsolete GitHub runner records after
+the new replicas are healthy. Future recreates of the same Compose project reuse
+the per-replica directories and do not need the token.
 
 When `docker compose up -d --build` recreates containers after an image change,
-Compose reattaches those volumes. Existing replicas therefore start directly with
+Compose reattaches the named volume. Existing replicas therefore start directly with
 `run.sh`; `REG_TOKEN` can be expired or absent after the first registration.
 
 Use normal Compose updates to preserve state:
@@ -207,11 +218,11 @@ Use normal Compose updates to preserve state:
 docker compose -f docker/linux/docker-compose.yml up -d --build
 ```
 
-Do not use `--renew-anon-volumes` (`-V`) for an update: it intentionally creates
-new volumes and every affected replica will need registration again. Likewise,
-`docker compose down` is a teardown operation; Docker cannot automatically attach
-anonymous volumes to the next `up`. If a runner must be permanently retired,
-remove it in GitHub and then run `docker compose down -v` to delete its volumes.
+Do not use `docker compose down -v` for an update: it intentionally deletes the
+named volume and every replica will need registration again. A normal `down` or
+`up --force-recreate` preserves `runner-data`. If a runner must be permanently
+retired, remove it in GitHub and then use `docker compose down -v` to delete the
+entire project's persistent data.
 
 `EPHEMERAL=true` is intentionally rejected by the persistent image because an
 ephemeral runner deregisters after one job and cannot be safely restarted from
@@ -257,7 +268,8 @@ docker-compose -f docker/linux/docker-compose.yml down
 ```
 Normal shutdown leaves the runner registered as offline. To permanently remove
 one, use GitHub → Settings → Actions → Runners → Remove (or Force remove if the
-container is no longer available), then delete the corresponding Compose volumes.
+container is no longer available). Use `docker compose down -v` only when all
+runner data for that Compose project should be deleted.
 
 ---
 
@@ -269,7 +281,7 @@ Key practices in this project:
 - Runners execute as non-root users (`docker` on Linux, `runner` on ARM64)
 - Secrets live in `.env` (gitignored) — never hardcoded in compose files
 - `REG_TOKEN` is used only at initial registration; it is not stored in runner state
-- Persistent state contains runner credentials and is isolated in a Docker volume per replica
+- Persistent state contains runner credentials and is isolated in a per-replica directory inside a project-scoped Docker volume
 
 ---
 
