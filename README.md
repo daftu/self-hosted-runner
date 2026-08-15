@@ -60,6 +60,14 @@ are present. Each replica receives a separate directory in the project's named
 state. Keep `REG_TOKEN` only in
 Arcane; it is needed only when a new replica registers.
 
+Arcane's container registry credentials apply to pulls initiated by Arcane.
+Docker commands executed by a workflow use the Docker CLI inside the runner and
+need their own Docker client configuration. The Arcane Compose file mounts a
+host-side Docker config read-only from `/opt/docker-auth/config.json`. Prepare
+that file with the required registry login and permissions that allow the
+runner's `docker` user to read it. To use another host path, set
+`DOCKER_CONFIG_FILE` in the Arcane project's managed environment.
+
 Arcane always disables the runner's in-container self-update. Rebuild the local
 image and let Arcane recreate the containers when upgrading the runner version.
 

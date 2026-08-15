@@ -19,6 +19,12 @@ services:
     volumes:
       - runner-data:/home/docker/actions-runner/.runner-data
       - /var/run/docker.sock:/var/run/docker.sock
+      - type: bind
+        source: "${DOCKER_CONFIG_FILE:-/opt/docker-auth/config.json}"
+        target: /home/docker/.docker/config.json
+        read_only: true
+        bind:
+          create_host_path: false
     logging:
       driver: "json-file"
       options:
