@@ -1,6 +1,7 @@
 services:
   runner:
     image: self-hosted-runner:local
+    pull_policy: never
     restart: always
     environment:
       # Arcane writes these values to the managed project's .env after the
