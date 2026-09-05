@@ -199,6 +199,16 @@ RUNNER_REPLICAS=4
 RUNNER_REPLICAS=4 docker compose -f docker/linux/docker-compose.yml up -d --build
 ```
 
+CPU and memory limits and reservations can also be overridden in `.env` or for
+a single launch. When unset, each Compose file keeps its existing defaults.
+
+```env
+RUNNER_CPU_LIMIT=1
+RUNNER_MEMORY_LIMIT=1G
+RUNNER_CPU_RESERVATION=0.5
+RUNNER_MEMORY_RESERVATION=512M
+```
+
 ## Persistent replicas
 
 Each Compose file declares a named `runner-data` volume mounted inside the
