@@ -43,11 +43,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
-          memory: 2048M
+          cpus: "${RUNNER_CPU_LIMIT:-2}"
+          memory: "${RUNNER_MEMORY_LIMIT:-2048M}"
         reservations:
-          cpus: '0.4'
-          memory: 256M
+          cpus: "${RUNNER_CPU_RESERVATION:-0.4}"
+          memory: "${RUNNER_MEMORY_RESERVATION:-256M}"
 
 volumes:
   runner-data:
