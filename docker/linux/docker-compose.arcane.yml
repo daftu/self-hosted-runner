@@ -2,6 +2,9 @@ services:
   runner:
     image: self-hosted-runner:local
     pull_policy: never
+    labels:
+      com.getarcaneapp.arcane.update-check: "false"
+      com.getarcaneapp.arcane.updater: "false"
     restart: always
     environment:
       # Arcane writes these values to the managed project's .env after the
