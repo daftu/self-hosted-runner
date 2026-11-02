@@ -106,11 +106,11 @@ Both variants support pre-built images from GHCR. By default, `docker-compose up
 
 ```
 docker/
-├── linux/          Ubuntu 24.04, x64, runner v2.331.0
+├── linux/          Ubuntu 24.04, x64, runner v2.338.2
 │   ├── Dockerfile        user: docker, workdir: /home/docker/actions-runner
 │   ├── docker-compose.yml  2 replicas · 0.5 CPU · 512M each
 │   └── start.sh
-└── mac/            Ubuntu 24.04, ARM64, runner v2.331.0
+└── mac/            Ubuntu 24.04, ARM64, runner v2.338.2
     ├── Dockerfile        user: runner, workdir: /home/runner/actions-runner
     ├── docker-compose.yml  1 replica · 1 CPU · 1G · Docker socket mounted
     └── start.sh
@@ -148,7 +148,7 @@ Copy `.env.example` to `.env` and set your values. The `.env` file is gitignored
 ### Override Runner Version
 
 ```sh
-docker build --build-arg RUNNER_VERSION=2.332.0 -t custom-github-runner:latest ./docker/linux
+docker build --build-arg RUNNER_VERSION=2.338.2 -t custom-github-runner:latest ./docker/linux
 ```
 
 ---
